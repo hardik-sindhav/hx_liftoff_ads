@@ -41,7 +41,7 @@ This is an unofficial community plugin and is not affiliated with Liftoff.
 
 ```yaml
 dependencies:
-  hx_liftoff_ads: ^0.1.0
+  hx_liftoff_ads: ^0.1.1
 ```
 
 ```

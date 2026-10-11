@@ -1,11 +1,11 @@
 Pod::Spec.new do |s|
   s.name             = 'hx_liftoff_ads'
-  s.version          = '0.1.0'
+  s.version          = '0.1.1'
   s.summary          = 'Liftoff Monetize (Vungle) ads for Flutter.'
   s.description      = <<-DESC
 Interstitial, rewarded, app open, banner, MREC and native ads from Liftoff Monetize (formerly Vungle).
                        DESC
-  s.homepage         = 'https://github.com/your-name/hx_liftoff_ads'
+  s.homepage         = 'https://github.com/hardik-sindhav/hx_liftoff_ads'
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'hx' => 'duvansoft@gmail.com' }
   s.source           = { :path => '.' }

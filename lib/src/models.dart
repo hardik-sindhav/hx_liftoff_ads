@@ -69,6 +69,38 @@ class LiftoffPlacements {
     return const LiftoffPlacements();
   }
 
+  /// Returns a copy with the given placements replaced.
+  LiftoffPlacements copyWith({
+    String? interstitial,
+    String? rewarded,
+    String? appOpen,
+    String? banner,
+    String? mrec,
+    String? native,
+  }) =>
+      LiftoffPlacements(
+        interstitial: interstitial ?? this.interstitial,
+        rewarded: rewarded ?? this.rewarded,
+        appOpen: appOpen ?? this.appOpen,
+        banner: banner ?? this.banner,
+        mrec: mrec ?? this.mrec,
+        native: native ?? this.native,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is LiftoffPlacements &&
+      other.interstitial == interstitial &&
+      other.rewarded == rewarded &&
+      other.appOpen == appOpen &&
+      other.banner == banner &&
+      other.mrec == mrec &&
+      other.native == native;
+
+  @override
+  int get hashCode =>
+      Object.hash(interstitial, rewarded, appOpen, banner, mrec, native);
+
   String? forFormat(AdFormat format) => switch (format) {
         AdFormat.interstitial => interstitial,
         AdFormat.rewarded => rewarded,
@@ -113,7 +145,7 @@ class LiftoffAdError implements Exception {
   const LiftoffAdError(this.code, this.message);
 
   /// SDK error code, or one of [unsupported], [notInitialized], [notLoaded],
-  /// [noPlacement].
+  /// [noPlacement], [timeout].
   final int code;
   final String message;
 
@@ -121,6 +153,7 @@ class LiftoffAdError implements Exception {
   static const int notInitialized = -101;
   static const int notLoaded = -102;
   static const int noPlacement = -103;
+  static const int timeout = -104;
 
   @override
   String toString() => 'LiftoffAdError($code): $message';

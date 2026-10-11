@@ -27,6 +27,9 @@ class FullscreenAdListener {
 
 /// Shared implementation of interstitial, rewarded and app open ads.
 abstract class FullscreenAd {
+  /// Default time to wait for an ad to load before giving up.
+  static const Duration defaultLoadTimeout = Duration(seconds: 30);
+
   FullscreenAd.internal(this.format, this.placementId, this.listener)
       : _id = LiftoffBridge.newId();
 
@@ -41,7 +44,7 @@ abstract class FullscreenAd {
 
   bool get isLoaded => _loaded && !_disposed;
 
-  Future<void> _load(String? userId) {
+  Future<void> _load(String? userId, Duration timeout) {
     if (!LiftoffAds.instance.isSupported(format)) {
       return Future.error(const LiftoffAdError(
           LiftoffAdError.unsupported, 'Format not supported on this platform'));
@@ -60,7 +63,11 @@ abstract class FullscreenAd {
     }).catchError((Object e) {
       if (!c.isCompleted) c.completeError(e);
     });
-    return c.future;
+    return c.future.timeout(timeout, onTimeout: () {
+      dispose();
+      throw LiftoffAdError(LiftoffAdError.timeout,
+          'Ad did not load within ${timeout.inSeconds}s');
+    });
   }
 
   void _onEvent(String event, LiftoffAdError? error) {
@@ -124,11 +131,12 @@ class InterstitialAd extends FullscreenAd {
   static Future<InterstitialAd> load({
     String? placementId,
     FullscreenAdListener? listener,
+    Duration timeout = FullscreenAd.defaultLoadTimeout,
   }) async {
     final ad = InterstitialAd._(
         LiftoffAds.instance.resolvePlacement(AdFormat.interstitial, placementId),
         listener);
-    await ad._load(null);
+    await ad._load(null, timeout);
     return ad;
   }
 }
@@ -142,11 +150,12 @@ class RewardedAd extends FullscreenAd {
     String? placementId,
     String? userId,
     FullscreenAdListener? listener,
+    Duration timeout = FullscreenAd.defaultLoadTimeout,
   }) async {
     final ad = RewardedAd._(
         LiftoffAds.instance.resolvePlacement(AdFormat.rewarded, placementId),
         listener);
-    await ad._load(userId);
+    await ad._load(userId, timeout);
     return ad;
   }
 }
@@ -171,11 +180,12 @@ class AppOpenAd extends FullscreenAd {
   static Future<AppOpenAd> load({
     String? placementId,
     FullscreenAdListener? listener,
+    Duration timeout = FullscreenAd.defaultLoadTimeout,
   }) async {
     final ad = AppOpenAd._(
         LiftoffAds.instance.resolvePlacement(AdFormat.appOpen, placementId),
         listener);
-    await ad._load(null);
+    await ad._load(null, timeout);
     ad._loadedAt = DateTime.now();
     return ad;
   }

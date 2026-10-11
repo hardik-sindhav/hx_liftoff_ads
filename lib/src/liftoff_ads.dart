@@ -7,6 +7,7 @@ class LiftoffAds {
   static final LiftoffAds instance = LiftoffAds._();
 
   bool _initialized = false;
+  Future<void>? _initializing;
   LiftoffPlacements _placements = const LiftoffPlacements();
 
   bool get isInitialized => _initialized;
@@ -35,11 +36,11 @@ class LiftoffAds {
       throw const LiftoffAdError(
           LiftoffAdError.unsupported, 'Platform not supported');
     }
-    await LiftoffBridge.invoke<void>('initialize', {
+    // Concurrent callers share one native initialization.
+    await (_initializing ??= LiftoffBridge.invoke<void>('initialize', {
       'appId': appId,
       'privacy': privacy.toMap(),
-    });
-    _initialized = true;
+    }).then((_) => _initialized = true).whenComplete(() => _initializing = null));
   }
 
   /// Replaces the stored placement IDs (e.g. after fetching them remotely).

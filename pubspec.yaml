@@ -1,8 +1,10 @@
 name: hx_liftoff_ads
 description: "Liftoff Monetize (Vungle) ads for Flutter: interstitial, rewarded, app open, banner, MREC and native ads on Android, iOS and Windows."
-version: 0.1.0
-homepage: https://github.com/your-name/hx_liftoff_ads
-repository: https://github.com/your-name/hx_liftoff_ads
+version: 0.1.1
+homepage: https://github.com/hardik-sindhav/hx_liftoff_ads
+repository: https://github.com/hardik-sindhav/hx_liftoff_ads
+issue_tracker: https://github.com/hardik-sindhav/hx_liftoff_ads/issues
+documentation: https://github.com/hardik-sindhav/hx_liftoff_ads#readme
 topics:
   - ads
   - liftoff

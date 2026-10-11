@@ -1,3 +1,10 @@
+## 0.1.1
+
+* Fix repository, homepage and podspec links; add `issue_tracker` and `documentation`.
+* Ad loading now times out after 30 seconds (configurable with `timeout:`) and throws `LiftoffAdError.timeout` instead of hanging.
+* Concurrent `initialize` calls share a single native initialization.
+* `LiftoffPlacements` gains `copyWith`, `==` and `hashCode`.
+
 ## 0.1.0
 
 * Initial release: interstitial, rewarded, app open, banner, MREC and native ads.

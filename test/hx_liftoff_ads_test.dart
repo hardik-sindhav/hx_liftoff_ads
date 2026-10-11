@@ -85,4 +85,21 @@ void main() {
     LiftoffBridge.debugSupportedOverride = false;
     expect(LiftoffAds.instance.isSupported(AdFormat.banner), false);
   });
+
+  test('load times out with LiftoffAdError.timeout', () async {
+    LiftoffAds.instance.setPlacements(const LiftoffPlacements(rewarded: 'R1'));
+    await expectLater(
+      RewardedAd.load(timeout: const Duration(milliseconds: 20)),
+      throwsA(isA<LiftoffAdError>()
+          .having((e) => e.code, 'code', LiftoffAdError.timeout)),
+    );
+  });
+
+  test('LiftoffPlacements copyWith and equality', () {
+    const a = LiftoffPlacements(interstitial: 'I', rewarded: 'R');
+    expect(a.copyWith(banner: 'B').banner, 'B');
+    expect(a.copyWith(banner: 'B').interstitial, 'I');
+    expect(a, const LiftoffPlacements(interstitial: 'I', rewarded: 'R'));
+    expect(a == a.copyWith(rewarded: 'X'), false);
+  });
 }
