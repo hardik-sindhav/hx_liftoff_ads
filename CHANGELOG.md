@@ -1,3 +1,8 @@
+## Unreleased
+
+* Windows: app open is no longer reported as supported (Liftoff does not offer it on Windows).
+* Windows: experimental banner, MREC and native ads, drawn in a native child window positioned over the widget.
+
 ## 0.1.1
 
 * Fix repository, homepage and podspec links; add `issue_tracker` and `documentation`.

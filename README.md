@@ -6,12 +6,14 @@ Liftoff Monetize (formerly Vungle) ads for Flutter, with one Dart API for **Andr
 |---|:-:|:-:|:-:|
 | Interstitial | ✅ | ✅ | ✅ |
 | Rewarded | ✅ | ✅ | ✅ |
-| App open | ✅ | ✅ | ✅ |
-| Banner | ✅ | ✅ | ❌ |
-| MREC (300x250) | ✅ | ✅ | ❌ |
-| Native | ✅ | ✅ | ❌ |
+| App open | ✅ | ✅ | ❌ |
+| Banner | ✅ | ✅ | 🧪 |
+| MREC (300x250) | ✅ | ✅ | 🧪 |
+| Native | ✅ | ✅ | 🧪 |
 
 > **Status:** tested on Android with real placements. The iOS and Windows code compiles against the Liftoff SDKs (Windows builds; iOS was written against the SDK headers) but has not been verified with live ads yet. Please report issues.
+
+🧪 = experimental on Windows: the Liftoff Windows SDK draws these ads into a window you give it, so the plugin hosts a native child window positioned over the widget. See [Windows](#windows). App open is not available on Windows.
 
 Underlying SDKs: Android `com.vungle:vungle-ads:7.7.9`, iOS pod `VungleAds ~> 7.7`, Windows `VungleSDKForWindowsDesktopNative 7.1.1` (Win32 x64).
 
@@ -69,7 +71,8 @@ flutter pub get
 * The plugin **downloads the Liftoff Windows SDK from NuGet while building** (it is under Liftoff's commercial license and is not redistributed in this package). The build machine needs internet access.
 * `LiftoffSDK.Win32.dll` and `WebView2Loader.dll` are copied next to your exe automatically.
 * Ads are rendered with WebView2, so the **Microsoft Edge WebView2 Runtime** must be installed on the user's PC. Include the Evergreen Bootstrapper in your installer.
-* Windows supports interstitial, rewarded and app open only. Banner, MREC and native return `LiftoffAdError.unsupported`; check with `isSupported`.
+* Interstitial and rewarded are fully supported. **Banner, MREC and native are experimental**: the SDK has no inline-ad widget, so the plugin creates a native child window over your widget and the SDK draws the ad in it. Because it is a real window it is always drawn **above** Flutter content: dialogs, menus and overlays that overlap the ad appear behind it, and the ad is hidden while another route covers the page. Keep ads out of scrolling areas that sit under overlays. The SDK recommends at least 250 dip of height, so a 50px banner logs a warning but still plays.
+* App open is not available on Windows (Liftoff does not offer it).
 
 ## 4. Initialize
 
@@ -238,7 +241,7 @@ Every failure is a `LiftoffAdError` with a `code` and a `message`. Codes from th
 
 | Code | Meaning |
 |---|---|
-| `-100` (`unsupported`) | Platform or format not supported (for example a banner on Windows) |
+| `-100` (`unsupported`) | Platform or format not supported (for example app open on Windows) |
 | `-101` (`notInitialized`) | `initialize` was not called or failed |
 | `-102` (`notLoaded`) | `show()` called on an ad that isn't loaded or was already shown |
 | `-103` (`noPlacement`) | No placement ID passed or configured for the format |

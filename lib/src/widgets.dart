@@ -80,12 +80,96 @@ abstract class _PlatformAdState<T extends StatefulWidget> extends State<T> {
         creationParamsCodec: const StandardMessageCodec(),
       );
     }
+    if (_isWindowsPlatform) {
+      return _WindowsInlineHost(adId: adId, placementId: placement!);
+    }
     return const SizedBox.shrink();
   }
 }
 
+bool get _isWindowsPlatform => !kIsWeb && Platform.isWindows;
+
+/// Windows has no platform views, so the ad is drawn by a native child window
+/// that this widget keeps positioned over its own bounds (experimental).
+///
+/// A native window is always drawn above Flutter content: dialogs, menus and
+/// overlays that overlap the ad appear behind it. The ad is hidden while
+/// another route covers this page.
+class _WindowsInlineHost extends StatefulWidget {
+  const _WindowsInlineHost({required this.adId, required this.placementId});
+
+  final int adId;
+  final String placementId;
+
+  @override
+  State<_WindowsInlineHost> createState() => _WindowsInlineHostState();
+}
+
+class _WindowsInlineHostState extends State<_WindowsInlineHost> {
+  Map<String, Object?>? _last;
+  bool _created = false;
+  bool _disposed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(_sync);
+  }
+
+  /// Runs after every frame while mounted and reports the widget's bounds
+  /// (physical pixels) whenever they change.
+  void _sync(Duration _) {
+    if (_disposed || !mounted) return;
+    final box = context.findRenderObject();
+    if (box is RenderBox && box.attached && box.hasSize) {
+      final dpr = View.of(context).devicePixelRatio;
+      final topLeft = box.localToGlobal(Offset.zero);
+      final route = ModalRoute.of(context);
+      final visible = (route?.isCurrent ?? true) &&
+          TickerMode.valuesOf(context).enabled &&
+          box.size.height > 1;
+      final args = <String, Object?>{
+        'id': widget.adId,
+        'x': (topLeft.dx * dpr).round(),
+        'y': (topLeft.dy * dpr).round(),
+        'w': (box.size.width * dpr).round(),
+        'h': (box.size.height * dpr).round(),
+        'visible': visible,
+      };
+      if (!mapEquals(args, _last)) {
+        _last = args;
+        if (!_created) {
+          _created = true;
+          LiftoffBridge.invoke<void>(
+              'inlineShow', {...args, 'placementId': widget.placementId})
+              .catchError((_) {});
+        } else {
+          LiftoffBridge.invoke<void>('inlineMove', args).catchError((_) {});
+        }
+      }
+    }
+    // Keep following the widget (scrolling, resizing, route changes).
+    WidgetsBinding.instance.scheduleFrame();
+    WidgetsBinding.instance.addPostFrameCallback(_sync);
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    if (_created) {
+      LiftoffBridge.invoke<void>('inlineDispose', {'id': widget.adId})
+          .catchError((_) {});
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.expand();
+}
+
 /// Banner / MREC ad. Collapses to zero size if the ad fails to load or the
-/// platform doesn't support banners (Windows).
+/// platform doesn't support it. On Windows it is drawn in a native child
+/// window (experimental).
 class LiftoffBannerAd extends StatefulWidget {
   const LiftoffBannerAd({
     super.key,
@@ -147,18 +231,20 @@ class _LiftoffBannerAdState extends _PlatformAdState<LiftoffBannerAd> {
   @override
   Widget build(BuildContext context) {
     if (error != null) return const SizedBox.shrink();
-    // The native view is kept in the tree while loading (zero-opacity size
-    // reserved) so the SDK can attach to a window.
+    // The native view is kept in the tree while loading so the SDK can attach
+    // to a window. Windows reserves the full size up front because the ad is
+    // only drawn once its window exists.
     return SizedBox(
       width: widget.size.width.toDouble(),
-      height: loaded ? widget.size.height.toDouble() : 1,
+      height: loaded || _isWindowsPlatform ? widget.size.height.toDouble() : 1,
       child: buildPlatformView(),
     );
   }
 }
 
 /// Native ad rendered with a built-in template (icon, title, body, media and
-/// call-to-action button). Android and iOS only.
+/// call-to-action button) on Android and iOS. On Windows the Liftoff SDK draws
+/// the creative itself in a native child window (experimental).
 class LiftoffNativeAd extends StatefulWidget {
   const LiftoffNativeAd({
     super.key,
@@ -212,7 +298,7 @@ class _LiftoffNativeAdState extends _PlatformAdState<LiftoffNativeAd> {
     if (error != null) return const SizedBox.shrink();
     return SizedBox(
       width: double.infinity,
-      height: loaded ? widget.height : 1,
+      height: loaded || _isWindowsPlatform ? widget.height : 1,
       child: buildPlatformView(),
     );
   }

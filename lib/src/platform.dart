@@ -41,9 +41,9 @@ class LiftoffBridge {
   static bool supports(AdFormat f) {
     if (!isPlatformSupported) return false;
     if (_isWindows) {
-      return f == AdFormat.interstitial ||
-          f == AdFormat.rewarded ||
-          f == AdFormat.appOpen;
+      // Liftoff does not offer app open ads on Windows. Banner, MREC and
+      // native are drawn in a native child window (experimental).
+      return f != AdFormat.appOpen;
     }
     return true;
   }

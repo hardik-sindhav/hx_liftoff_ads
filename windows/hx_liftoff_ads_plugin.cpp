@@ -12,6 +12,20 @@ namespace hx_liftoff_ads {
 
 namespace {
 constexpr UINT kWakeMessage = WM_APP + 0x4C1;
+constexpr wchar_t kInlineClass[] = L"HxLiftoffInlineAdHost";
+
+void RegisterInlineClass() {
+  static bool registered = false;
+  if (registered) return;
+  registered = true;
+  WNDCLASSW wc = {};
+  wc.lpfnWndProc = ::DefWindowProcW;
+  wc.hInstance = ::GetModuleHandleW(nullptr);
+  wc.lpszClassName = kInlineClass;
+  wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+  wc.hCursor = ::LoadCursorW(nullptr, IDC_ARROW);
+  ::RegisterClassW(&wc);
+}
 
 using flutter::EncodableMap;
 using flutter::EncodableValue;
@@ -67,6 +81,8 @@ HxLiftoffAdsPlugin::HxLiftoffAdsPlugin(flutter::PluginRegistrarWindows *registra
 }
 
 HxLiftoffAdsPlugin::~HxLiftoffAdsPlugin() {
+  for (auto &entry : inline_windows_) ::DestroyWindow(entry.second);
+  inline_windows_.clear();
   registrar_->UnregisterTopLevelWindowProcDelegate(proc_id_);
 }
 
@@ -144,6 +160,14 @@ void HxLiftoffAdsPlugin::HandleMethodCall(
     LoadAd(a, result);
   } else if (method == "showAd") {
     ShowAd(Get<int>(a, "id").value_or(-1), result);
+  } else if (method == "inlineShow") {
+    InlineShow(a, result);
+  } else if (method == "inlineMove") {
+    InlineMove(a);
+    result->Success();
+  } else if (method == "inlineDispose") {
+    InlineDispose(Get<int>(a, "id").value_or(-1));
+    result->Success();
   } else if (method == "disposeAd") {
     ads_.erase(Get<int>(a, "id").value_or(-1));
     result->Success();
@@ -184,6 +208,113 @@ void HxLiftoffAdsPlugin::Initialize(const EncodableMap &args,
     RunOnMain([result, msg] { result->Error("-1", msg); });
   };
   init_future_ = LiftoffAds::InitializeAsync(*app_id, config, hwnd, cb);
+}
+
+LiftoffAds *HxLiftoffAdsPlugin::EnsureSdk() {
+  if (!sdk_ && init_future_.valid() &&
+      init_future_.wait_for(std::chrono::seconds(0)) ==
+          std::future_status::ready) {
+    sdk_ = init_future_.get();
+  }
+  return sdk_;
+}
+
+void HxLiftoffAdsPlugin::InlineShow(const EncodableMap &args,
+                                    std::shared_ptr<Result> result) {
+  int id = Get<int>(args, "id").value_or(-1);
+  auto placement = Get<std::string>(args, "placementId");
+  HWND parent = TopLevelWindow();
+  if (id < 0 || !placement || !parent) {
+    result->Error("-1", "bad arguments");
+    return;
+  }
+  LiftoffAds *sdk = EnsureSdk();
+  if (!sdk) {
+    result->Error("-101", "SDK not initialized");
+    return;
+  }
+
+  RegisterInlineClass();
+  HWND host = ::CreateWindowExW(
+      0, kInlineClass, L"", WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0, 0,
+      Get<int>(args, "w").value_or(1), Get<int>(args, "h").value_or(1), parent,
+      nullptr, ::GetModuleHandleW(nullptr), nullptr);
+  if (!host) {
+    result->Error("-1", "could not create ad window");
+    return;
+  }
+  inline_windows_[id] = host;
+  InlineMove(args);
+  result->Success();
+
+  std::string placement_id = *placement;
+  AdLoadCallback load_cb;
+  load_cb.OnAdLoadSuccess = [this, id, placement_id](AdLoadEventArgs) {
+    RunOnMain([this, id, placement_id] {
+      auto it = inline_windows_.find(id);
+      LiftoffAds *sdk = EnsureSdk();
+      if (it == inline_windows_.end() || !sdk) return;
+
+      AdPlayCallback play_cb;
+      play_cb.OnAdStart = [this, id](AdPlayEventArgs) {
+        RunOnMain([this, id] {
+          Emit(id, "loaded");
+          Emit(id, "impression");
+        });
+      };
+      play_cb.OnAdPlayClick = [this, id](AdPlayEventArgs) {
+        RunOnMain([this, id] { Emit(id, "clicked"); });
+      };
+      play_cb.OnAdPlayFailure = [this, id](AdPlayEventArgs e) {
+        std::string msg =
+            e.ErrorMessage.empty() ? "Ad failed to play" : e.ErrorMessage;
+        RunOnMain([this, id, msg] {
+          int code = -1;
+          Emit(id, "failedToLoad", &code, &msg);
+        });
+      };
+
+      AdConfig config;
+      config.hPublisherWnd = it->second;
+      LiftoffAdPlayInfo info = sdk->PlayAd(placement_id, play_cb, config);
+      if (!info.Success) {
+        int code = -1;
+        std::string msg = info.ErrorMessage;
+        Emit(id, "failedToLoad", &code, &msg);
+      }
+    });
+  };
+  load_cb.OnAdLoadFailure = [this, id](AdLoadEventArgs e) {
+    std::string msg = e.ErrorMessage.empty() ? "Ad failed to load" : e.ErrorMessage;
+    RunOnMain([this, id, msg] {
+      int code = -1;
+      Emit(id, "failedToLoad", &code, &msg);
+    });
+  };
+  if (!sdk->LoadAd(placement_id, load_cb)) {
+    std::string msg = "LoadAd rejected (unknown placement?)";
+    int code = -1;
+    Emit(id, "failedToLoad", &code, &msg);
+  }
+}
+
+void HxLiftoffAdsPlugin::InlineMove(const EncodableMap &args) {
+  auto it = inline_windows_.find(Get<int>(args, "id").value_or(-1));
+  if (it == inline_windows_.end()) return;
+  int w = Get<int>(args, "w").value_or(1);
+  int h = Get<int>(args, "h").value_or(1);
+  ::SetWindowPos(it->second, HWND_TOP, Get<int>(args, "x").value_or(0),
+                 Get<int>(args, "y").value_or(0), w, h,
+                 SWP_NOACTIVATE |
+                     (Get<bool>(args, "visible").value_or(true) ? SWP_SHOWWINDOW
+                                                                : SWP_HIDEWINDOW));
+}
+
+void HxLiftoffAdsPlugin::InlineDispose(int id) {
+  auto it = inline_windows_.find(id);
+  if (it == inline_windows_.end()) return;
+  ::DestroyWindow(it->second);
+  inline_windows_.erase(it);
 }
 
 void HxLiftoffAdsPlugin::LoadAd(const EncodableMap &args,

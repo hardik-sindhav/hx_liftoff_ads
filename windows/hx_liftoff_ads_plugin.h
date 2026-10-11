@@ -56,6 +56,14 @@ class HxLiftoffAdsPlugin : public flutter::Plugin {
   void LoadAd(const flutter::EncodableMap &args, std::shared_ptr<Result> result);
   void ShowAd(int id, std::shared_ptr<Result> result);
 
+  // Banner / MREC / native: the ad is drawn in a child window of the Flutter
+  // window that Dart keeps positioned over the widget.
+  LiftoffAds *EnsureSdk();
+  void InlineShow(const flutter::EncodableMap &args,
+                  std::shared_ptr<Result> result);
+  void InlineMove(const flutter::EncodableMap &args);
+  void InlineDispose(int id);
+
   flutter::PluginRegistrarWindows *registrar_;
   int proc_id_ = -1;
   std::unique_ptr<flutter::EventChannel<flutter::EncodableValue>> events_;
@@ -67,6 +75,7 @@ class HxLiftoffAdsPlugin : public flutter::Plugin {
   LiftoffAds *sdk_ = nullptr;
   std::future<LiftoffAds *> init_future_;
   std::map<int, Ad> ads_;
+  std::map<int, HWND> inline_windows_;
 };
 
 }  // namespace hx_liftoff_ads
